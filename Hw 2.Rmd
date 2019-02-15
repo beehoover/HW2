@@ -1,0 +1,68 @@
+---
+title: "Fish"
+author: "Barbara Rose Hoover"
+date: "2/14/2019"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+```{r}
+library(tidyverse)
+library(Ecdat)
+library(plm)
+library(lmtest)
+library(car) #for plotting
+```
+
+```{r}
+fish <- read_csv("fish_catch.csv") #read in csv
+```
+```{r}
+fish_df <- fish %>% #wrangling to remove unnecessary rows and rename columns
+  setNames(.,(c("year","wild","farmed","total"))) %>% 
+  slice(5:67)  
+
+fish_df$wild<-as.integer(fish_df$wild)
+fish_df$year<-as.integer(fish_df$year)
+fish_df<-mutate(fish_df, number = year - 1950)
+
+
+```
+
+```{r}
+#exploratory plot 
+ggplot(fish_df, aes(x = year, y=wild))+
+  geom_point()+
+  ylim(15,95)
+```
+Logistic growth equation: 
+
+N(t) = A/(1+Be^-rt)
+
+# Estimate for K/A: ~ 90
+# Estimate for N0: ~ 15
+# Estimate for B: ~ 5
+
+BEstimate <- (90 - 15)/15 # BEstimate = 5
+
+```{r}
+r_est <- lm(log(fish_df$wild[1:5]) ~ fish_df$number[1:5]) #2.860
+```
+
+```{r}
+fish_fit<- nls(wild ~ A/(1+B*exp(-r*number)), 
+        start = list(A = 90, B = 5, r = 2.860), 
+        data = fish_df, trace = TRUE) 
+```
+
+#Create a subset of the data that you think is just in the 'exponential growth phase.' Take the natural log of the wild count and create a basic scatterplot of time v ln(wild). 
+
+```{r}
+
+Graph2 <- plot(fish_df$number[0:5],log(fish_df$wild[0:5])) # Create a basic scatterplot of time versus ln(wild)
+
+```
