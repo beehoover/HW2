@@ -9,19 +9,19 @@ output: html_document
 knitr::opts_chunk$set(echo = TRUE)
 ```
 
-
-```{r}
+```{r, messages = FALSE}
 library(tidyverse)
-library(Ecdat)
-library(plm)
-library(lmtest)
-library(car) #for plotting
+library(boot)
+library(simputation)
 ```
 
-```{r}
+# Task 2: Parameter Estimation – Wild Fish Catch
+
+```{r data, message=FALSE, warning = FALSE}
 fish <- read_csv("fish_catch.csv") #read in csv
 ```
-```{r}
+
+```{r data wrangling, message=FALSE, warning = FALSE}
 fish_df <- fish %>% #wrangling to remove unnecessary rows and rename columns
   setNames(.,(c("year","wild","farmed","total"))) %>% 
   slice(5:67)  
@@ -33,36 +33,122 @@ fish_df<-mutate(fish_df, number = year - 1950)
 
 ```
 
-```{r}
+## a) Exploratory Plot
+```{r plot, message=FALSE, warning = FALSE}
 #exploratory plot 
 ggplot(fish_df, aes(x = year, y=wild))+
   geom_point()+
   ylim(15,95)
 ```
-Logistic growth equation: 
 
-N(t) = A/(1+Be^-rt)
+## b) Logistic growth  
 
-# Estimate for K/A: ~ 90
-# Estimate for N0: ~ 15
-# Estimate for B: ~ 5
+Logistic growth equation: N(t) = A/(1+Be^-rt)
 
-BEstimate <- (90 - 15)/15 # BEstimate = 5
+Estimate for K/A: ~ 90
+Estimate for N0: ~ 15
+Estimate for B: ~ 5
+  BEstimate <- (90 - 15)/15 # BEstimate = 5
 
-```{r}
-r_est <- lm(log(fish_df$wild[1:5]) ~ fish_df$number[1:5]) #2.860
+
+
+```{r estimate_r, message=FALSE, warning = FALSE}
+#finding slope of line to get 'r' (growth rate constant)
+r_fish_est <- lm(log(fish_df$wild[1:5]) ~ fish_df$number[1:5]) #r=0.07046
 ```
 
-```{r}
+$N_t = \left(\frac{A}{1 + \beta e^{-rt}}\right)$  
+
+Carrying Capacity (A) from the exploratory graph above:  
+A = 90 million tons
+
+If $N_0 = 15$ million tons estimate $\beta$:  
+  
+$\beta = \frac{(K - N_0)}{N_0}$   
+  
+$\beta = \frac{(90-15)}{15} = 5$ million tons 
+
+```{r model fitting, message=FALSE, warning=FALSE}
 fish_fit<- nls(wild ~ A/(1+B*exp(-r*number)), 
-        start = list(A = 90, B = 5, r = 2.860), 
+        start = list(A = 90, B = 5, r = 0.0705), 
         data = fish_df, trace = TRUE) 
 ```
 
-#Create a subset of the data that you think is just in the 'exponential growth phase.' Take the natural log of the wild count and create a basic scatterplot of time v ln(wild). 
-
-```{r}
-
-Graph2 <- plot(fish_df$number[0:5],log(fish_df$wild[0:5])) # Create a basic scatterplot of time versus ln(wild)
-
+```{r storing code, include=FALSE}
+#storing code for final graph
+A <- coef(fish_fit)[1]
+B <- coef(fish_fit)[2]
+r <- coef(fish_fit)[3]
 ```
+
+## c) Parameters:  
+ 
+$A = 99.8$ million tons   
+
+ 
+$\beta =  4.38$ million tons      
+
+ 
+$r = 0.0705$ million tons per year   
+
+## d) Finalized Graph: 
+
+```{r final graph, message=FALSE, warning=FALSE}
+# Create a new sequence containing a series of times over which fish caught is predicted 
+time_seq <- seq(0,65, length=100) 
+#Using the parameters (A, B, and r) and the time sequence to predict the fish caught for the logistic growth model
+fish_pred <- A/(1+B*exp(-r*time_seq))
+#  Bind together the time sequence data and the predictions data into a new data frame
+pred_df <- data.frame(time_seq, fish_pred)
+#Final graph showing the original data (as scatterplot points) and the predicted data (as a line graph) 
+ggplot(fish_df, aes(x = number, y = wild)) +
+  geom_point(color = "gray", size = 2, alpha = 0.7) +
+  geom_line(data = pred_df, aes(x = time_seq, y = fish_pred), color = "blue", size = 1) + 
+  scale_x_continuous(expand = c(0,0.5), limits = c(0,70), breaks = seq(0,70, by = 10)) +
+  scale_y_continuous(expand = c(0,0), limits = c(0,100)) +
+  labs(x = "Time \n(Years since 1950)", y = "Wild Fish Catch \n(Million Tons)") +
+  theme_bw() 
+```
+
+#Task 3: Bootstrapped Confidence Interval for Proportions
+
+
+## a) Original Sample Vector:
+
+```{r bootstrap, warning=FALSE, message=FALSE}
+# Find a confidence interval for the proportion of nonbinary/genderqueer students experiencing exclusionary, hostile or intimidating experience at UCSB.
+
+# Original data from survey (n = 36): 22 indicated they experienced exclusionary conduct 
+
+# Create a vector of proportions to use for bootstrapping: 
+survey <- c(rep.int(1, 22), rep.int(0, 14)) # 0 = did not experience exclusionary conduct, 1 = did experience exclusionary conduct 
+
+# # Create a function to calculate the mean of varying vectors (x) of index (i)
+mean_fun <- function(x,i) {mean(x[i])}
+# Bootstrapping with 10,000:
+boot_10000<-boot(survey, mean_fun, R=10000)
+# Bootstrap with 100,000:
+boot_100000<-boot(survey, mean_fun, R=100000)
+#Shows decrease in bias. Little change in standard error
+```
+
+## b) Histogram of Boostrapped Proportions:
+
+```{r histogram, message=FALSE, warning = FALSE}
+bin <- 2*((NROW(boot_100000$t))^(1/3))
+ggplot() +
+  aes(boot_100000$t) +
+  geom_histogram(bins = bin) +
+  scale_x_continuous(expand = c(0,0)) +
+  scale_y_continuous(expand = c(0,0), limits = c(0,15000)) +
+  theme_bw()
+```
+
+## c) Confidence Interval: 
+
+```{r boostrap CI, include=FALSE}
+boostrap_ci <- boot.ci(boot_100000, conf = 0.95)
+# Percentile CI (0.452, 0.7771)
+```
+
+The proportion of UCSB students identifying as nonbinary/genderqueer who experience exclusionary, hostile, or intimidating conduct is [0.452, 0.777] with a 95% confidence interval (n = 100,000 bootstrap samples).  

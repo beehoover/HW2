@@ -1,0 +1,28 @@
+---
+title: "Task 1"
+author: "Barbara Rose Hoover"
+date: "2/19/2019"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+Task 1: Data wrangling and visualization - cetaceans in captivity
+
+```{r data, message=FALSE, warning = FALSE}
+ceta <- read_csv("captive_cetacean.csv") #read in csv
+```
+
+```{r}
+
+ceda_bd<- ceta %>% 
+  filter(species =="Bottlenose", acquisition == "Born")
+
+current<-as.factor(ceda_bd$currently)
+ggplot(data=ceda_bd, aes(x=currently))+
+  geom_histogram(stat="count")
+str(ceta)
+```
+
