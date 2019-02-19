@@ -15,6 +15,42 @@ library(boot)
 library(simputation)
 ```
 
+#Task 1: Data wrangling and visualization - cetaceans in captivity
+
+```{r data, message=FALSE, warning = FALSE}
+ceta <- read_csv("captive_cetacean.csv") #read in csv
+```
+
+```{r}
+ceta$birthYear<-as.integer(ceta$birthYear)
+ceda_bd<- ceta %>% 
+  filter(species =="Bottlenose", acquisition == "Born", birthYear !="NA", status=="Alive" | status == "Died")%>%
+  separate(statusDate, c("day","month", "year"), "/") %>%
+  select(species, birthYear,currently,status,year) %>%
+  transform(year = as.numeric(year))%>%
+  transform(year = ifelse(year <=17, year+2000, year+1900))%>%
+  mutate(age = ifelse(status == "Alive", 2017-birthYear, year-birthYear))%>%
+  mutate(five_survive = ifelse(age>=5, "Y", "N"))%>%
+  group_by(currently)%>%
+  count(five_survive)%>%
+  spread(five_survive, n)%>%
+  mutate(rate = Y / (N+Y))%>%
+  mutate(count=N+Y)
+                         
+bd_five <- ceda_bd %>%
+  filter(count >= 20)
+
+```
+
+```{r}
+ggplot(bd_five, aes(currently, rate))+
+  geom_col()+
+  theme(axis.text.x = element_text(angle = 90, hjust = 1))+
+    labs(subtitle="Bottle Nose Dolphins in Agencies with n>20", 
+       title= "Rate of Survival past age 5",
+       y = "Rate of Survival Past Age 5")
+```
+
 # Task 2: Parameter Estimation – Wild Fish Catch
 
 ```{r data, message=FALSE, warning = FALSE}
